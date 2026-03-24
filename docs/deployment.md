@@ -107,3 +107,36 @@ This guide outlines how to deploy the Unity Catalog server.
     ```
 
 - Modify the `jars/classpath` file and add path to your jdbc driver.
+
+### Example SQL Server Connection
+
+#### Prerequisites
+
+- Install docker.
+- Download JDBC driver for [SQL Server](https://learn.microsoft.com/en-us/sql/connect/jdbc/download-microsoft-jdbc-driver-for-sql-server).
+
+#### Start SQL Server
+
+- In a terminal, navigate to the cloned repository root directory.
+- Modify `etc/db/mssql-example.yml` to configure SQL Server. Then start SQL Server using Docker:
+
+    ```sh
+    docker-compose -f etc/db/mssql-example.yml up -d
+    ```
+
+- Create the `ucdb` database in the SQL Server instance:
+
+    ```sh
+    docker exec -it <container_id> /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'UcPassw0rd!' -C -Q "CREATE DATABASE ucdb"
+    ```
+
+- Modify the `etc/conf/hibernate.properties` file with your SQL Server connection details:
+
+    ```properties
+    hibernate.connection.driver_class=com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hibernate.connection.url=jdbc:sqlserver://localhost:1433;databaseName=ucdb;encrypt=true;trustServerCertificate=true
+    hibernate.connection.user=sa
+    hibernate.connection.password=UcPassw0rd!
+    ```
+
+- Modify the `jars/classpath` file and add path to your JDBC driver.
