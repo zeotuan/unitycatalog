@@ -158,7 +158,7 @@ server:
     # -- (string) Database type
     # @raw
     #
-    # Supported values: `file`, `postgresql`
+    # Supported values: `file`, `postgresql`, `sqlserver`
     #
     type: file
     fileConfig:
@@ -268,6 +268,59 @@ server:
         # ```yaml
         # params:
         #   sslfactory: my.custom.SSLFactory
+        # ```
+        #
+        extraParams:
+
+    sqlserverConfig:
+        # -- (string) SQL Server database host (Required)
+        # @default -- not set
+        # @raw
+        #
+        # Example: `mydb.database.windows.net`
+        #
+        host:
+
+        # -- (int) SQL Server database port
+        # @default -- 1433
+        port: 1433
+
+        # -- (string) SQL Server database name
+        # @default -- ucdb
+        dbName: ucdb
+
+        # -- (string) SQL Server username
+        # @default -- sa
+        username: sa
+
+        # -- (string) SQL Server user password secret name
+        # @default -- not set
+        # @raw
+        #
+        # If not set, connection will be made without a password
+        #
+        passwordSecretName:
+
+        # -- (string) SQL Server user password secret key
+        # @default -- password
+        passwordSecretKey: password
+
+        # -- (bool) Enable encryption for the connection
+        # @default -- true
+        encrypt: true
+
+        # -- (bool) Trust the server certificate without validation
+        # @default -- false
+        trustServerCertificate: false
+
+        # -- (object) SQL Server extra connection params
+        # @default -- not set
+        # @raw
+        #
+        # Example:
+        # ```yaml
+        # extraParams:
+        #   integratedSecurity: true
         # ```
         #
         extraParams:

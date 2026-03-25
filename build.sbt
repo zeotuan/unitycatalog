@@ -378,7 +378,6 @@ lazy val server = (project in file("server"))
       "com.unboundid.product.scim2" % "scim2-sdk-common" % "3.1.0",
       "org.casbin" % "jcasbin" % "1.55.0",
       "org.casbin" % "jdbc-adapter" % "2.7.0"
-        exclude("com.microsoft.sqlserver", "mssql-jdbc")
         exclude("com.oracle.database.jdbc", "ojdbc6"),
       "org.springframework" % "spring-expression" % "6.1.11",
       "com.auth0" % "java-jwt" % "4.4.0",

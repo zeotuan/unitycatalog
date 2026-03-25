@@ -35,7 +35,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import org.hibernate.Session;
 import org.hibernate.SessionFactory;
-import org.hibernate.query.NativeQuery;
 import org.hibernate.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -593,13 +592,23 @@ public class DeltaCommitRepository {
    * @return the number of commits actually deleted in this batch
    */
   private static int deleteCommitsUpTo(Session session, UUID tableId, long upToCommitVersion) {
-    NativeQuery<?> query =
-        session.createNativeQuery(
-            "DELETE FROM uc_delta_commits WHERE table_id = :tableId AND commit_version <= :upToCommitVersion LIMIT :numCommitsPerBatch");
-    query.setParameter("tableId", tableId);
-    query.setParameter("upToCommitVersion", upToCommitVersion);
-    query.setParameter("numCommitsPerBatch", NUM_COMMITS_PER_BATCH);
-    return query.executeUpdate();
+    List<UUID> idsToDelete =
+        session
+            .createQuery(
+                "SELECT d.id FROM DeltaCommitDAO d WHERE d.tableId = :tableId "
+                    + "AND d.commitVersion <= :upToCommitVersion",
+                UUID.class)
+            .setParameter("tableId", tableId)
+            .setParameter("upToCommitVersion", upToCommitVersion)
+            .setMaxResults(NUM_COMMITS_PER_BATCH)
+            .getResultList();
+    if (idsToDelete.isEmpty()) {
+      return 0;
+    }
+    return session
+        .createMutationQuery("DELETE FROM DeltaCommitDAO WHERE id IN (:ids)")
+        .setParameter("ids", idsToDelete)
+        .executeUpdate();
   }
 
   /**
@@ -614,12 +623,19 @@ public class DeltaCommitRepository {
    * @return the number of commits actually deleted in this batch
    */
   private static int deleteCommits(Session session, UUID tableId) {
-    NativeQuery<?> query =
-        session.createNativeQuery(
-            "DELETE FROM uc_delta_commits WHERE table_id = :tableId LIMIT :numCommitsPerBatch");
-    query.setParameter("tableId", tableId);
-    query.setParameter("numCommitsPerBatch", NUM_COMMITS_PER_BATCH);
-    return query.executeUpdate();
+    List<UUID> idsToDelete =
+        session
+            .createQuery("SELECT d.id FROM DeltaCommitDAO d WHERE d.tableId = :tableId", UUID.class)
+            .setParameter("tableId", tableId)
+            .setMaxResults(NUM_COMMITS_PER_BATCH)
+            .getResultList();
+    if (idsToDelete.isEmpty()) {
+      return 0;
+    }
+    return session
+        .createMutationQuery("DELETE FROM DeltaCommitDAO WHERE id IN (:ids)")
+        .setParameter("ids", idsToDelete)
+        .executeUpdate();
   }
 
   /**
@@ -632,13 +648,13 @@ public class DeltaCommitRepository {
    */
   private static void markCommitAsLatestBackfilled(
       Session session, UUID tableId, long commitVersion) {
-    NativeQuery<?> query =
-        session.createNativeQuery(
-            "UPDATE uc_delta_commits SET is_backfilled_latest_commit = true WHERE table_id = :tableId "
-                + "AND commit_version = :commitVersion");
-    query.setParameter("tableId", tableId);
-    query.setParameter("commitVersion", commitVersion);
-    query.executeUpdate();
+    session
+        .createMutationQuery(
+            "UPDATE DeltaCommitDAO SET isBackfilledLatestCommit = true "
+                + "WHERE tableId = :tableId AND commitVersion = :commitVersion")
+        .setParameter("tableId", tableId)
+        .setParameter("commitVersion", commitVersion)
+        .executeUpdate();
   }
 
   /**
@@ -667,19 +683,28 @@ public class DeltaCommitRepository {
    * @return a list containing the first and last commits, empty if no commits exist
    */
   private List<DeltaCommitDAO> getFirstAndLastCommits(Session session, UUID tableId) {
-    // Use native SQL to get the first and last commits since HQL doesn't support UNION ALL.
-    // UNION ALL makes sure TWO rows are returned as long as there's any commit, even if there's
-    // only one commit in table.
-    String sql =
-        "(SELECT * FROM uc_delta_commits WHERE table_id = :tableId "
-            + "ORDER BY commit_version ASC LIMIT 1) "
-            + "UNION ALL "
-            + "(SELECT * FROM uc_delta_commits WHERE table_id = :tableId "
-            + "ORDER BY commit_version DESC LIMIT 1)";
-    Query<DeltaCommitDAO> query = session.createNativeQuery(sql, DeltaCommitDAO.class);
-    query.setParameter("tableId", tableId);
-    List<DeltaCommitDAO> result = query.getResultList();
-    // Sort to ensure the first commit is at index 0
+    DeltaCommitDAO first =
+        session
+            .createQuery(
+                "FROM DeltaCommitDAO d WHERE d.tableId = :tableId ORDER BY d.commitVersion ASC",
+                DeltaCommitDAO.class)
+            .setParameter("tableId", tableId)
+            .setMaxResults(1)
+            .uniqueResult();
+    if (first == null) {
+      return Collections.emptyList();
+    }
+    DeltaCommitDAO last =
+        session
+            .createQuery(
+                "FROM DeltaCommitDAO d WHERE d.tableId = :tableId ORDER BY d.commitVersion DESC",
+                DeltaCommitDAO.class)
+            .setParameter("tableId", tableId)
+            .setMaxResults(1)
+            .uniqueResult();
+    List<DeltaCommitDAO> result = new java.util.ArrayList<>();
+    result.add(first);
+    result.add(last != null ? last : first);
     result.sort(Comparator.comparing(DeltaCommitDAO::getCommitVersion));
     return result;
   }

@@ -82,8 +82,40 @@ hibernate.connection.user={{ .Values.server.db.postgresqlConfig.username }}
 {{- if .Values.server.db.postgresqlConfig.passwordSecretName }}
 hibernate.connection.password=${DB_PASSWORD}
 {{- end }}
+{{- else if eq .Values.server.db.type "sqlserver" -}}
+
+{{- $encrypt := "true" }}
+{{- if kindIs "bool" .Values.server.db.sqlserverConfig.encrypt }}
+{{- $encrypt = .Values.server.db.sqlserverConfig.encrypt | toString }}
+{{- end }}
+{{- $trustServerCert := "false" }}
+{{- if kindIs "bool" .Values.server.db.sqlserverConfig.trustServerCertificate }}
+{{- $trustServerCert = .Values.server.db.sqlserverConfig.trustServerCertificate | toString }}
+{{- end }}
+{{- $params := dict "encrypt" $encrypt "trustServerCertificate" $trustServerCert }}
+
+{{- if .Values.server.db.sqlserverConfig.extraParams }}
+{{- $params = merge $params .Values.server.db.sqlserverConfig.extraParams }}
+{{- end }}
+
+{{- $urlParamsList := list }}
+{{- range $key, $value := $params }}
+{{- $urlParamsList = append $urlParamsList (printf "%s=%s" $key $value) }}
+{{- end }}
+
+{{- $urlParams := "" }}
+{{- if $urlParamsList }}
+{{- $urlParams = printf ";%s" ($urlParamsList | join ";") }}
+{{- end -}}
+
+hibernate.connection.driver_class=com.microsoft.sqlserver.jdbc.SQLServerDriver
+hibernate.connection.url=jdbc:sqlserver://{{ .Values.server.db.sqlserverConfig.host }}:{{ .Values.server.db.sqlserverConfig.port }};databaseName={{ .Values.server.db.sqlserverConfig.dbName }}{{ $urlParams }}
+hibernate.connection.user={{ .Values.server.db.sqlserverConfig.username }}
+{{- if .Values.server.db.sqlserverConfig.passwordSecretName }}
+hibernate.connection.password=${DB_PASSWORD}
+{{- end }}
 {{- else }}
-{{ fail "Unsupported database type. Supported types are: file, postgresql." }}
+{{ fail "Unsupported database type. Supported types are: file, postgresql, sqlserver." }}
 {{- end }}
 
 hibernate.hbm2ddl.auto=update
